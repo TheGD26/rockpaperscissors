@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rock Paper Scissors</title>
+  <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" class="container">
+  <h1>✊ ✋ ✌️ Rock Paper Scissors</h1>
+
+  <!-- Setup screen -->
+  <section v-if="!game" class="card">
+    <h2>New game</h2>
+    <label>Your name
+      <input v-model="playerName" placeholder="Player" @keyup.enter="startGame">
+    </label>
+    <label>Difficulty
+      <select v-model="difficulty">
+        <option value="EASY">Easy – random computer</option>
+        <option value="HARD">Hard – computer learns your habits</option>
+      </select>
+    </label>
+    <button class="primary" @click="startGame">Start</button>
+  </section>
+
+  <!-- Game screen -->
+  <section v-else class="card">
+    <p class="vs"><b>{{ game.playerName }}</b> vs <b>Computer</b> <small>({{ game.opponent }})</small></p>
+
+    <div class="score">
+      <div class="win"><span>{{ game.wins }}</span>Wins</div>
+      <div class="draw"><span>{{ game.draws }}</span>Draws</div>
+      <div class="lose"><span>{{ game.losses }}</span>Losses</div>
+    </div>
+
+    <div class="moves">
+      <button v-for="m in moves" :key="m.value" class="move" :disabled="busy" @click="play(m.value)">
+        <span class="emoji">{{ m.emoji }}</span>{{ m.label }}
+      </button>
+    </div>
+
+    <div v-if="game.lastRound" class="result" :class="game.lastRound.outcome.toLowerCase()">
+      <div class="faceoff">
+        <span>{{ emoji(game.lastRound.playerMove) }}</span>
+        <small>vs</small>
+        <span>{{ emoji(game.lastRound.computerMove) }}</span>
+      </div>
+      <h2>{{ message(game.lastRound.outcome) }}</h2>
+    </div>
+
+    <div class="actions">
+      <button @click="reset">Reset score</button>
+      <button @click="game = null">Change settings</button>
+    </div>
+
+    <table v-if="game.history.length">
+      <thead><tr><th>#</th><th>You</th><th>Computer</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr v-for="r in [...game.history].reverse()" :key="r.number">
+          <td>{{ r.number }}</td>
+          <td>{{ emoji(r.playerMove) }}</td>
+          <td>{{ emoji(r.computerMove) }}</td>
+          <td :class="r.outcome.toLowerCase()">{{ r.outcome }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <p v-if="error" class="error">{{ error }}</p>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+const MOVES = [
+  { value: 'ROCK', label: 'Rock', emoji: '✊' },
+  { value: 'PAPER', label: 'Paper', emoji: '✋' },
+  { value: 'SCISSORS', label: 'Scissors', emoji: '✌️' }
+];
+
+createApp({
+  data() {
+    return { playerName: '', difficulty: 'EASY', game: null, busy: false, error: '', moves: MOVES };
+  },
+  methods: {
+    async api(path, body) {
+      this.error = '';
+      this.busy = true;
+      try {
+        const res = await fetch('/api/games' + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body || {})
+        });
+        if (!res.ok) throw new Error('Server error ' + res.status);
+        this.game = await res.json();
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.busy = false;
+      }
+    },
+    startGame() {
+      return this.api('', { playerName: this.playerName, difficulty: this.difficulty });
+    },
+    play(move) {
+      return this.api(`/${this.game.gameId}/play`, { move });
+    },
+    reset() {
+      return this.api(`/${this.game.gameId}/reset`);
+    },
+    emoji(move) {
+      return MOVES.find(m => m.value === move).emoji;
+    },
+    message(outcome) {
+      return { WIN: 'You win! 🎉', LOSE: 'You lose 😢', DRAW: "It's a draw 🤝" }[outcome];
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
